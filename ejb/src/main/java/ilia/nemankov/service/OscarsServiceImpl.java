@@ -3,6 +3,7 @@ package ilia.nemankov.service;
 import ilia.nemankov.dto.MovieDTO;
 import ilia.nemankov.dto.PersonDTO;
 
+import javax.ejb.Stateless;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.NotFoundException;
@@ -12,27 +13,42 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.util.*;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+@Stateless
 public class OscarsServiceImpl implements OscarsService {
 
     private final Client client;
     private final String targetUrl;
 
-    public OscarsServiceImpl() {
-        this.client = ClientBuilder.newClient();
+    public OscarsServiceImpl() throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
+        String filename = System.getenv("KEYSTORE_LOCATION");
+        FileInputStream is = new FileInputStream(filename);
+        KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+        String password = System.getenv("KEYSTORE_PASSWORD");
+        keystore.load(is, password.toCharArray());
+        this.client = ClientBuilder.newBuilder().trustStore(keystore).build();
         targetUrl = System.getenv("MAIN_INSTANCE_LOCATION");
     }
 
     @Override
-    public List<PersonDTO> getLoosers() {
+    public List<PersonDTO> getLoosers() throws BadResponseException {
         Response response = client
                 .target(targetUrl + "/api/movies")
                 .request(MediaType.APPLICATION_JSON)
                 .get();
 
         if (response.getStatus() != 200 && response.getStatus() != 404) {
-            throw new NotFoundException(Response.status(HttpServletResponse.SC_INTERNAL_SERVER_ERROR).entity("Could not process movies").build());
+            throw new BadResponseException("Could not process movies", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
 
         List<MovieDTO> movies = response.readEntity(new GenericType<List<MovieDTO>>() {});
@@ -62,7 +78,7 @@ public class OscarsServiceImpl implements OscarsService {
     }
 
     @Override
-    public void humiliateByGenre(String genre) {
+    public void humiliateByGenre(String genre) throws BadResponseException {
         validate(genre);
 
         Response response = client
@@ -71,7 +87,7 @@ public class OscarsServiceImpl implements OscarsService {
                 .get();
 
         if (response.getStatus() != 200 && response.getStatus() != 404) {
-            throw new NotFoundException(Response.status(HttpServletResponse.SC_INTERNAL_SERVER_ERROR).entity("Could not process movies").build());
+            throw new BadResponseException("Could not process movies", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
 
         List<MovieDTO> movies = response.readEntity(new GenericType<List<MovieDTO>>() {});
@@ -88,20 +104,20 @@ public class OscarsServiceImpl implements OscarsService {
                             .put(Entity.entity(movie, MediaType.APPLICATION_JSON));
 
                     if (response.getStatus() != 200) {
-                        throw new NotFoundException(Response.status(HttpServletResponse.SC_INTERNAL_SERVER_ERROR).entity("Could update some movie").build());
+                        throw new BadResponseException("Could not update some movie", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
                     }
                 }
             }
         }
     }
 
-    private void validate(String genre) {
+    private void validate(String genre) throws BadResponseException {
         if (genre == null) {
-            throw new BadRequestException(Response.status(HttpServletResponse.SC_BAD_REQUEST).entity("'Genre' must be specified").build());
+            throw new BadResponseException("'Genre' must be specified", HttpServletResponse.SC_BAD_REQUEST);
         }
 
         if (!(genre.length() < 32) || !(genre.length() > 0)) {
-            throw new BadRequestException(Response.status(HttpServletResponse.SC_BAD_REQUEST).entity("Length of field 'genre' must be bigger than 0 and less than 32").build());
+            throw new BadResponseException("Length of field 'genre' must be bigger than 0 and less than 32", HttpServletResponse.SC_BAD_REQUEST);
         }
     }
 
