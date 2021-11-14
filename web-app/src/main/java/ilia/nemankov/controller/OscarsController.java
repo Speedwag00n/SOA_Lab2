@@ -28,7 +28,9 @@ public class OscarsController {
 
     @GET
     @Path("/get-loosers")
-    public Response getLoosers() throws Throwable {
+    public Response getLoosers() {
+        System.out.println(1);
+
         try {
             List<PersonDTO> persons = oscarsService.getLoosers();
 
@@ -44,7 +46,9 @@ public class OscarsController {
 
     @POST
     @Path("/humiliate-by-genre/{genre}")
-    public Response humiliateByGenre(@PathParam("genre") String genre) throws Throwable {
+    public Response humiliateByGenre(@PathParam("genre") String genre) {
+        System.out.println(1);
+
         try {
             oscarsService.humiliateByGenre(genre);
             return Response.status(HttpServletResponse.SC_OK).build();

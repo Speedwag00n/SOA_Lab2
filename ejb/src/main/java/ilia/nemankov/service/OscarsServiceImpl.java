@@ -2,11 +2,14 @@ package ilia.nemankov.service;
 
 import ilia.nemankov.dto.MovieDTO;
 import ilia.nemankov.dto.PersonDTO;
+import net.sf.corn.converter.json.JsTypeComplex;
+import net.sf.corn.converter.json.JsTypeList;
+import net.sf.corn.converter.json.JsonStringParser;
+import net.sf.corn.httpclient.HttpClient;
+import net.sf.corn.httpclient.HttpResponse;
 
 import javax.ejb.Stateless;
 import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.BadRequestException;
-import javax.ws.rs.NotFoundException;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
@@ -15,6 +18,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -28,7 +32,8 @@ import java.util.Map;
 public class OscarsServiceImpl implements OscarsService {
 
     private final Client client;
-    private final String targetUrl;
+    private String targetUrl;
+    private final String targetId = "l1";
 
     public OscarsServiceImpl() throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
         String filename = System.getenv("KEYSTORE_LOCATION");
@@ -37,7 +42,8 @@ public class OscarsServiceImpl implements OscarsService {
         String password = System.getenv("KEYSTORE_PASSWORD");
         keystore.load(is, password.toCharArray());
         this.client = ClientBuilder.newBuilder().trustStore(keystore).build();
-        targetUrl = System.getenv("MAIN_INSTANCE_LOCATION");
+
+        initServices();
     }
 
     @Override
@@ -48,7 +54,16 @@ public class OscarsServiceImpl implements OscarsService {
                 .get();
 
         if (response.getStatus() != 200 && response.getStatus() != 404) {
-            throw new BadResponseException("Could not process movies", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            initServices();
+
+            response = client
+                    .target(targetUrl + "/api/movies")
+                    .request(MediaType.APPLICATION_JSON)
+                    .get();
+
+            if (response.getStatus() != 200 && response.getStatus() != 404) {
+                throw new BadResponseException("Could not process movies", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            }
         }
 
         List<MovieDTO> movies = response.readEntity(new GenericType<List<MovieDTO>>() {});
@@ -87,7 +102,16 @@ public class OscarsServiceImpl implements OscarsService {
                 .get();
 
         if (response.getStatus() != 200 && response.getStatus() != 404) {
-            throw new BadResponseException("Could not process movies", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            initServices();
+
+            response = client
+                    .target(targetUrl + "/api/movies")
+                    .request(MediaType.APPLICATION_JSON)
+                    .get();
+
+            if (response.getStatus() != 200 && response.getStatus() != 404) {
+                throw new BadResponseException("Could not process movies", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            }
         }
 
         List<MovieDTO> movies = response.readEntity(new GenericType<List<MovieDTO>>() {});
@@ -118,6 +142,29 @@ public class OscarsServiceImpl implements OscarsService {
 
         if (!(genre.length() < 32) || !(genre.length() > 0)) {
             throw new BadResponseException("Length of field 'genre' must be bigger than 0 and less than 32", HttpServletResponse.SC_BAD_REQUEST);
+        }
+    }
+
+    private boolean initServices() {
+        try {
+            String sdUrl = System.getenv("CONSUL_URL");
+
+            String url = sdUrl + "/v1/agent/service/" + targetId;
+
+            HttpClient client = new HttpClient(new URI(url));
+            HttpResponse response = client.sendData(HttpClient.HTTP_METHOD.GET);
+            if (!response.hasError()) {
+                String jsonString = response.getData();
+                JsTypeComplex jsonResponse = (JsTypeComplex) JsonStringParser.parseJsonString(jsonString);
+
+                targetUrl = "https://" + jsonResponse.get("Address").toString().replace("\"", "") + ":" + jsonResponse.get("Port");
+
+                return false;
+            } else {
+                return true;
+            }
+        } catch (Exception e) {
+            return false;
         }
     }
 
