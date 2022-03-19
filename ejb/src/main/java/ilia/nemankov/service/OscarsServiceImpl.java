@@ -3,7 +3,6 @@ package ilia.nemankov.service;
 import ilia.nemankov.dto.MovieDTO;
 import ilia.nemankov.dto.PersonDTO;
 import net.sf.corn.converter.json.JsTypeComplex;
-import net.sf.corn.converter.json.JsTypeList;
 import net.sf.corn.converter.json.JsonStringParser;
 import net.sf.corn.httpclient.HttpClient;
 import net.sf.corn.httpclient.HttpResponse;
@@ -16,10 +15,8 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
@@ -36,12 +33,7 @@ public class OscarsServiceImpl implements OscarsService {
     private final String targetId = "l1";
 
     public OscarsServiceImpl() throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
-        String filename = System.getenv("KEYSTORE_LOCATION");
-        FileInputStream is = new FileInputStream(filename);
-        KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
-        String password = System.getenv("KEYSTORE_PASSWORD");
-        keystore.load(is, password.toCharArray());
-        this.client = ClientBuilder.newBuilder().trustStore(keystore).build();
+        this.client = ClientBuilder.newBuilder().build();
 
         initServices();
     }
@@ -157,7 +149,7 @@ public class OscarsServiceImpl implements OscarsService {
                 String jsonString = response.getData();
                 JsTypeComplex jsonResponse = (JsTypeComplex) JsonStringParser.parseJsonString(jsonString);
 
-                targetUrl = "https://" + jsonResponse.get("Address").toString().replace("\"", "") + ":" + jsonResponse.get("Port");
+                targetUrl = "http://" + jsonResponse.get("Address").toString().replace("\"", "") + ":" + jsonResponse.get("Port");
 
                 return false;
             } else {
